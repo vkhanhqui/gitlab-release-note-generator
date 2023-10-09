@@ -41,16 +41,16 @@ func (g *gitlabClient) RetrieveIssues(query url.Values) ([]app.Issue, error) {
 	return issues, nil
 }
 
-func (g *gitlabClient) RetrieveRepo() (app.Repository, error) {
+func (g *gitlabClient) RetrieveRepo() (app.Repo, error) {
 	path := fmt.Sprintf("/projects/%s", g.projectID)
 	body, err := g.makeRequest(requestIn{method: "GET", path: path})
 	if err != nil {
-		return app.Repository{}, err
+		return app.Repo{}, err
 	}
 
-	var repo app.Repository
+	var repo app.Repo
 	if err := json.Unmarshal(body, &repo); err != nil {
-		return app.Repository{}, errors.WithStack(err)
+		return app.Repo{}, errors.WithStack(err)
 	}
 
 	return repo, nil
