@@ -1,7 +1,7 @@
 package log
 
 import (
-	"gitlab-release-note-generator/pkg/errors"
+	"gitLab-rls-note/pkg/errors"
 	"log"
 	"os"
 )

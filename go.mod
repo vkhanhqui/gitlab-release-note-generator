@@ -1,4 +1,4 @@
-module gitlab-release-note-generator
+module gitLab-rls-note
 
 go 1.19
 

@@ -8,8 +8,8 @@ import (
 	"net/http"
 	"net/url"
 
-	"gitlab-release-note-generator/app"
-	"gitlab-release-note-generator/pkg/errors"
+	"gitLab-rls-note/app"
+	"gitLab-rls-note/pkg/errors"
 )
 
 type gitlabClient struct {
@@ -18,7 +18,7 @@ type gitlabClient struct {
 	projectID     string
 }
 
-func NewGitlabClient(personalToken, apiEndpoint, projectID string) *gitlabClient {
+func NewGitlabClient(personalToken, apiEndpoint, projectID string) app.GitLabClient {
 	return &gitlabClient{
 		personalToken: personalToken,
 		apiEndpoint:   apiEndpoint,
@@ -26,7 +26,7 @@ func NewGitlabClient(personalToken, apiEndpoint, projectID string) *gitlabClient
 	}
 }
 
-func (g *gitlabClient) SearchIssues(query url.Values) ([]app.Issue, error) {
+func (g *gitlabClient) RetrieveIssues(query url.Values) ([]app.Issue, error) {
 	path := fmt.Sprintf("/projects/%s/issues", g.projectID)
 	body, err := g.makeRequest(requestIn{method: "GET", path: path, query: query})
 	if err != nil {
@@ -41,7 +41,7 @@ func (g *gitlabClient) SearchIssues(query url.Values) ([]app.Issue, error) {
 	return issues, nil
 }
 
-func (g *gitlabClient) GetRepo() (app.Repository, error) {
+func (g *gitlabClient) RetrieveRepo() (app.Repository, error) {
 	path := fmt.Sprintf("/projects/%s", g.projectID)
 	body, err := g.makeRequest(requestIn{method: "GET", path: path})
 	if err != nil {
@@ -56,7 +56,7 @@ func (g *gitlabClient) GetRepo() (app.Repository, error) {
 	return repo, nil
 }
 
-func (g *gitlabClient) SearchMergeRequests(query url.Values) ([]app.MergeRequest, error) {
+func (g *gitlabClient) RetrieveMergeRequests(query url.Values) ([]app.MergeRequest, error) {
 	path := fmt.Sprintf("/projects/%s/merge_requests", g.projectID)
 	body, err := g.makeRequest(requestIn{method: "GET", path: path, query: query})
 	if err != nil {
@@ -71,7 +71,7 @@ func (g *gitlabClient) SearchMergeRequests(query url.Values) ([]app.MergeRequest
 	return mergeRequests, nil
 }
 
-func (g *gitlabClient) SearchTags(query url.Values) ([]app.Tag, error) {
+func (g *gitlabClient) RetrieveTags(query url.Values) ([]app.Tag, error) {
 	path := fmt.Sprintf("/projects/%s/repository/tags", g.projectID)
 	body, err := g.makeRequest(requestIn{method: "GET", path: path, query: query})
 	if err != nil {
@@ -86,7 +86,7 @@ func (g *gitlabClient) SearchTags(query url.Values) ([]app.Tag, error) {
 	return tags, nil
 }
 
-func (g *gitlabClient) FindCommitRefsBySHA(sha string, query url.Values) ([]app.CommitRef, error) {
+func (g *gitlabClient) RetrieveCommitRefsBySHA(sha string, query url.Values) ([]app.CommitRef, error) {
 	path := fmt.Sprintf("/projects/%s/repository/commits/%s/refs", g.projectID, sha)
 	body, err := g.makeRequest(requestIn{method: "GET", path: path, query: query})
 	if err != nil {

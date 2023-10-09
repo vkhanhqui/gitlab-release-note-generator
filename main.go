@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"net/url"
 
-	"gitlab-release-note-generator/app"
-	"gitlab-release-note-generator/pkg/config"
-	"gitlab-release-note-generator/store"
+	"gitLab-rls-note/app"
+	"gitLab-rls-note/pkg/config"
+	"gitLab-rls-note/store"
 )
 
 type envConfig struct {
@@ -27,20 +27,28 @@ func main() {
 		panic(err)
 	}
 
-	var gitlabAdapter app.GitLabClient = store.NewGitlabClient(
+	client := store.NewGitlabClient(
 		env.PersonalToken,
 		env.APIEndpoint,
 		env.ProjectID,
 	)
+	svc := app.NewService(client)
 
-	query := url.Values{
-		"state":          {"merged"},
+	mrs, err := svc.RetrieveMergeRequests(url.Values{
 		"updated_before": {"2023-10-09T07:22:19.000+00:00"},
 		"updated_after":  {"2023-10-09T07:15:26.000+00:00"},
-	}
-	mrs, err := gitlabAdapter.SearchMergeRequests(query)
+	})
 	if err != nil {
 		panic(err)
 	}
-	fmt.Println(app.DecorateMergeRequests(mrs))
+	fmt.Println(mrs)
+
+	issues, err := svc.RetrieveIssues(url.Values{
+		"updated_before": {"2023-10-09T07:22:19.000+00:00"},
+		"updated_after":  {"2023-10-09T07:15:26.000+00:00"},
+	})
+	if err != nil {
+		panic(err)
+	}
+	fmt.Println(issues)
 }

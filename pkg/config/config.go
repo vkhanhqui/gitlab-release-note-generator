@@ -1,8 +1,8 @@
 package config
 
 import (
-	"gitlab-release-note-generator/pkg/errors"
-	"gitlab-release-note-generator/pkg/log"
+	"gitLab-rls-note/pkg/errors"
+	"gitLab-rls-note/pkg/log"
 	"path"
 	"reflect"
 	"runtime"
