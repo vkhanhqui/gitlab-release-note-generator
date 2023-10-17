@@ -1,10 +1,10 @@
 package app
 
 import (
-	"fmt"
 	"gitLab-rls-note/pkg/errors"
 	"net/url"
 	"regexp"
+	"time"
 )
 
 const (
@@ -12,49 +12,75 @@ const (
 	issueState        = "closed"
 )
 
-type Service interface {
-	RetrieveMergeRequests(query url.Values) ([]DecoratedMergeRequest, error)
-	RetrieveIssues(query url.Values) ([]DecoratedIssue, error)
+type GitLabService interface {
 	RetrieveTwoLatestTags() ([]Tag, error)
+	RetrieveChangelogsByStartAndEndDate(startDate, endDate string) ([]MergeRequest, []Issue, error)
 }
-type service struct {
+
+type gitLabService struct {
 	client GitLabClient
 	config Config
 }
 
-func NewService(client GitLabClient, config Config) Service {
-	return &service{client: client, config: config}
+func NewGitLabService(client GitLabClient, config Config) GitLabService {
+	return &gitLabService{client: client, config: config}
 }
 
-func (s *service) RetrieveMergeRequests(query url.Values) ([]DecoratedMergeRequest, error) {
-	query.Add("state", mergeRequestState)
-	mrs, err := s.client.RetrieveMergeRequests(query)
+func (s *gitLabService) RetrieveChangelogsByStartAndEndDate(startDate, endDate string) ([]MergeRequest, []Issue, error) {
+	mergeRequests, err := s.retrieveMergeRequests(url.Values{
+		"updated_before": {endDate},
+		"updated_after":  {startDate},
+	})
 	if err != nil {
-		return nil, errors.WithStack(err)
+		return nil, nil, err
 	}
 
-	var list []DecoratedMergeRequest
-	for _, mr := range mrs {
-		list = append(list, s.decorateMergeRequest(mr))
-	}
-	return list, nil
-}
-
-func (s *service) RetrieveIssues(query url.Values) ([]DecoratedIssue, error) {
-	query.Add("state", issueState)
-	issues, err := s.client.RetrieveIssues(query)
+	parsedStartDate, err := time.Parse(time.RFC3339Nano, startDate)
 	if err != nil {
-		return nil, errors.WithStack(err)
+		return nil, nil, err
 	}
 
-	var list []DecoratedIssue
-	for _, issue := range issues {
-		list = append(list, s.decorateIssue(issue))
+	parsedEndDate, err := time.Parse(time.RFC3339Nano, endDate)
+	if err != nil {
+		return nil, nil, err
 	}
-	return list, nil
+
+	var filteredMRs []MergeRequest
+	for _, mr := range mergeRequests {
+		parsedTime, err := time.Parse(time.RFC3339Nano, mr.MergedAt)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		if parsedTime.After(parsedStartDate) && parsedTime.Before(parsedEndDate) {
+			filteredMRs = append(filteredMRs, mr)
+		}
+	}
+
+	issues, err := s.retrieveIssues(url.Values{
+		"updated_before": {endDate},
+		"updated_after":  {startDate},
+	})
+	if err != nil {
+		return nil, nil, err
+	}
+
+	var filteredISs []Issue
+	for _, iss := range issues {
+		parsedTime, err := time.Parse(time.RFC3339Nano, iss.ClosedAt)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		if parsedTime.After(parsedStartDate) && parsedTime.Before(parsedEndDate) {
+			filteredISs = append(filteredISs, iss)
+		}
+	}
+
+	return filteredMRs, filteredISs, nil
 }
 
-func (s *service) RetrieveTwoLatestTags() ([]Tag, error) {
+func (s *gitLabService) RetrieveTwoLatestTags() ([]Tag, error) {
 	tags, err := s.client.RetrieveTags(url.Values{})
 	if err != nil || len(tags) < 1 {
 		return nil, err
@@ -109,25 +135,25 @@ func (s *service) RetrieveTwoLatestTags() ([]Tag, error) {
 	return []Tag{latest, *secondTag}, nil
 }
 
-func (s *service) decorateMergeRequest(mr MergeRequest) DecoratedMergeRequest {
-	msg := fmt.Sprintf("- %s [#%d](%s) ([%s](%s))", mr.Title, mr.IID, mr.WebURL, mr.Author.Username, mr.Author.WebURL)
-	return DecoratedMergeRequest{
-		Message:      msg,
-		Labels:       mr.Labels,
-		DefaultLabel: "mergeRequests",
+func (s *gitLabService) retrieveMergeRequests(query url.Values) ([]MergeRequest, error) {
+	query.Add("state", mergeRequestState)
+	list, err := s.client.RetrieveMergeRequests(query)
+	if err != nil {
+		return nil, errors.WithStack(err)
 	}
+	return list, nil
 }
 
-func (s *service) decorateIssue(issue Issue) DecoratedIssue {
-	msg := fmt.Sprintf("- %s [#%d](%s)", issue.Title, issue.IID, issue.WebURL)
-	return DecoratedIssue{
-		Message:      msg,
-		Labels:       issue.Labels,
-		DefaultLabel: "issues",
+func (s *gitLabService) retrieveIssues(query url.Values) ([]Issue, error) {
+	query.Add("state", issueState)
+	list, err := s.client.RetrieveIssues(query)
+	if err != nil {
+		return nil, errors.WithStack(err)
 	}
+	return list, nil
 }
 
-func (s *service) isMatchTargetTagRegex(tag Tag) (bool, error) {
+func (s *gitLabService) isMatchTargetTagRegex(tag Tag) (bool, error) {
 	regex, err := regexp.Compile(s.config.TargetTagRegex)
 	if err != nil {
 		return false, errors.WithStack(err)
@@ -135,7 +161,7 @@ func (s *service) isMatchTargetTagRegex(tag Tag) (bool, error) {
 	return regex.MatchString(tag.Name), nil
 }
 
-func (s *service) isInTargetBranch(commits []CommitRef) bool {
+func (s *gitLabService) isInTargetBranch(commits []CommitRef) bool {
 	if s.config.TargetBranch == "" {
 		return true
 	}
@@ -158,10 +184,11 @@ type GitLabClient interface {
 }
 
 type Issue struct {
-	IID    int      `json:"iid"`
-	Title  string   `json:"title"`
-	WebURL string   `json:"web_url"`
-	Labels []string `json:"labels"`
+	IID      int      `json:"iid"`
+	Title    string   `json:"title"`
+	WebURL   string   `json:"web_url"`
+	Labels   []string `json:"labels"`
+	ClosedAt string   `json:"closed_at"`
 }
 
 type Repo struct {
@@ -177,6 +204,7 @@ type MergeRequest struct {
 		Username string `json:"username"`
 		WebURL   string `json:"web_url"`
 	} `json:"author"`
+	MergedAt string `json:"merged_at"`
 }
 
 type Tag struct {
@@ -209,8 +237,7 @@ type DecoratedIssue struct {
 }
 
 type Config struct {
-	TargetBranch       string
-	TargetTagRegex     string
-	TZ                 string
-	IssueClosedSeconds int
+	TargetBranch   string
+	TargetTagRegex string
+	TimeZone       string
 }

@@ -14,7 +14,7 @@ type envConfig struct {
 	ProjectID          string `mapstructure:"GITLAB_PROJECT_ID"`
 	TargetBranch       string `mapstructure:"TARGET_BRANCH"`
 	TargetTagRegex     string `mapstructure:"TARGET_TAG_REGEX"`
-	TZ                 string `mapstructure:"TZ"`
+	TimeZone           string `mapstructure:"TZ"`
 	IssueClosedSeconds int    `mapstructure:"ISSUE_CLOSED_SECONDS"`
 }
 
@@ -31,11 +31,10 @@ func main() {
 		env.APIEndpoint,
 		env.ProjectID,
 	)
-	svc := app.NewService(client, app.Config{
-		TargetBranch:       env.TargetBranch,
-		TargetTagRegex:     env.TargetTagRegex,
-		TZ:                 env.TZ,
-		IssueClosedSeconds: env.IssueClosedSeconds,
+	svc := app.NewGitLabService(client, app.Config{
+		TargetBranch:   env.TargetBranch,
+		TargetTagRegex: env.TargetTagRegex,
+		TimeZone:       env.TimeZone,
 	})
 
 	tags, err := svc.RetrieveTwoLatestTags()
@@ -43,4 +42,26 @@ func main() {
 		panic(err)
 	}
 	fmt.Println(tags)
+
+	if len(tags) != 2 {
+		fmt.Println("Cannot find latest and second latest tag. Abort the program!")
+	}
+
+	latestTag, secondLatestTag := tags[0], tags[1]
+	if latestTag.Commit.CommittedDate == "" || secondLatestTag.Commit.CommittedDate == "" {
+		fmt.Println("Cannot find latest and second latest tag. Abort the program!")
+	}
+
+	startDate := secondLatestTag.Commit.CommittedDate
+	endDate := latestTag.Commit.CommittedDate
+	// if env.IssueClosedSeconds > 0 {
+
+	// }
+	mrs, issues, err := svc.RetrieveChangelogsByStartAndEndDate(startDate, endDate)
+	if err != nil {
+		panic(err)
+	}
+	fmt.Println(mrs)
+	fmt.Println(issues)
+
 }
