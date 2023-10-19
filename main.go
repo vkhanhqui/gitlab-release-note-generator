@@ -34,14 +34,12 @@ func main() {
 	svc := app.NewGitLabService(client, app.Config{
 		TargetBranch:   env.TargetBranch,
 		TargetTagRegex: env.TargetTagRegex,
-		TimeZone:       env.TimeZone,
 	})
 
 	tags, err := svc.RetrieveTwoLatestTags()
 	if err != nil {
 		panic(err)
 	}
-	fmt.Println(tags)
 
 	if len(tags) != 2 {
 		fmt.Println("Cannot find latest and second latest tag. Abort the program!")
@@ -61,7 +59,15 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	fmt.Println(mrs)
-	fmt.Println(issues)
+
+	contentSvc, err := app.NewContentService(env.TimeZone)
+	if err != nil {
+		panic(err)
+	}
+	output, err := contentSvc.GenerateContent(mrs, issues, endDate)
+	if err != nil {
+		panic(err)
+	}
+	fmt.Println(output)
 
 }

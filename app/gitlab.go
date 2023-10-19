@@ -224,20 +224,7 @@ type CommitRef struct {
 type Release struct {
 }
 
-type DecoratedMergeRequest struct {
-	Message      string
-	Labels       []string
-	DefaultLabel string
-}
-
-type DecoratedIssue struct {
-	Message      string
-	Labels       []string
-	DefaultLabel string
-}
-
 type Config struct {
 	TargetBranch   string
 	TargetTagRegex string
-	TimeZone       string
 }
