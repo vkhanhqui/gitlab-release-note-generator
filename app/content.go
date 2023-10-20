@@ -17,7 +17,7 @@ var LABEL_CONFIG = []LabelConfig{
 }
 
 const (
-	yyyy_mm_dd = "2006-01-02"
+	releaseNoteTimeFormat = "2006-01-02"
 )
 
 type ContentService interface {
@@ -59,12 +59,12 @@ func (s *contentService) GenerateContent(mergeReqs []MergeRequest, issues []Issu
 }
 
 func (s *contentService) generateReleaseNote(releaseDate string) (string, error) {
-	parsedReleaseDate, err := time.Parse(time.RFC3339Nano, releaseDate)
+	parsedReleaseDate, err := time.Parse(gitlabTimeFormat, releaseDate)
 	if err != nil {
 		return "", errors.WithStack(err)
 	}
 
-	output := fmt.Sprintf("### Release note (%s)\n", parsedReleaseDate.In(s.timeZone).Format(yyyy_mm_dd))
+	output := fmt.Sprintf("### Release note (%s)\n", parsedReleaseDate.In(s.timeZone).Format(releaseNoteTimeFormat))
 	for _, label := range s.labelConfigs {
 		if _, exists := s.labelBucket[label.Name]; exists {
 			bucket := s.labelBucket[label.Name]

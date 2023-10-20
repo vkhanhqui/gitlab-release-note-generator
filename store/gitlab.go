@@ -12,6 +12,12 @@ import (
 	"gitLab-rls-note/pkg/errors"
 )
 
+const (
+	GET  = "GET"
+	POST = "POST"
+	PUT  = "PUT"
+)
+
 type gitlabClient struct {
 	personalToken string
 	apiEndpoint   string
@@ -28,7 +34,7 @@ func NewGitlabClient(personalToken, apiEndpoint, projectID string) app.GitLabCli
 
 func (g *gitlabClient) RetrieveIssues(query url.Values) ([]app.Issue, error) {
 	path := fmt.Sprintf("/projects/%s/issues", g.projectID)
-	body, err := g.makeRequest(requestIn{method: "GET", path: path, query: query})
+	body, err := g.makeRequest(requestIn{method: GET, path: path, query: query})
 	if err != nil {
 		return nil, err
 	}
@@ -43,7 +49,7 @@ func (g *gitlabClient) RetrieveIssues(query url.Values) ([]app.Issue, error) {
 
 func (g *gitlabClient) RetrieveRepo() (app.Repo, error) {
 	path := fmt.Sprintf("/projects/%s", g.projectID)
-	body, err := g.makeRequest(requestIn{method: "GET", path: path})
+	body, err := g.makeRequest(requestIn{method: GET, path: path})
 	if err != nil {
 		return app.Repo{}, err
 	}
@@ -58,7 +64,7 @@ func (g *gitlabClient) RetrieveRepo() (app.Repo, error) {
 
 func (g *gitlabClient) RetrieveMergeRequests(query url.Values) ([]app.MergeRequest, error) {
 	path := fmt.Sprintf("/projects/%s/merge_requests", g.projectID)
-	body, err := g.makeRequest(requestIn{method: "GET", path: path, query: query})
+	body, err := g.makeRequest(requestIn{method: GET, path: path, query: query})
 	if err != nil {
 		return nil, err
 	}
@@ -73,7 +79,7 @@ func (g *gitlabClient) RetrieveMergeRequests(query url.Values) ([]app.MergeReque
 
 func (g *gitlabClient) RetrieveTags(query url.Values) ([]app.Tag, error) {
 	path := fmt.Sprintf("/projects/%s/repository/tags", g.projectID)
-	body, err := g.makeRequest(requestIn{method: "GET", path: path, query: query})
+	body, err := g.makeRequest(requestIn{method: GET, path: path, query: query})
 	if err != nil {
 		return nil, err
 	}
@@ -88,7 +94,7 @@ func (g *gitlabClient) RetrieveTags(query url.Values) ([]app.Tag, error) {
 
 func (g *gitlabClient) RetrieveCommitRefsBySHA(sha string, query url.Values) ([]app.CommitRef, error) {
 	path := fmt.Sprintf("/projects/%s/repository/commits/%s/refs", g.projectID, sha)
-	body, err := g.makeRequest(requestIn{method: "GET", path: path, query: query})
+	body, err := g.makeRequest(requestIn{method: GET, path: path, query: query})
 	if err != nil {
 		return nil, err
 	}
@@ -101,15 +107,14 @@ func (g *gitlabClient) RetrieveCommitRefsBySHA(sha string, query url.Values) ([]
 	return commitRefs, nil
 }
 
-func (g *gitlabClient) CreateTagRelease(tagName string, body app.Release) error {
+func (g *gitlabClient) CreateTagRelease(body app.Release) error {
 	path := fmt.Sprintf("/projects/%s/releases", g.projectID)
 	bodyJSON, err := json.Marshal(body)
 	if err != nil {
 		return errors.WithStack(err)
 	}
 
-	query := url.Values{"tag_name": {tagName}}
-	_, err = g.makeRequest(requestIn{method: "POST", path: path, query: query, body: bodyJSON})
+	_, err = g.makeRequest(requestIn{method: POST, path: path, body: bodyJSON})
 	if err != nil {
 		return err
 	}
@@ -117,14 +122,14 @@ func (g *gitlabClient) CreateTagRelease(tagName string, body app.Release) error 
 	return nil
 }
 
-func (g *gitlabClient) UpdateTagRelease(tagName string, body app.Release) error {
-	path := fmt.Sprintf("/projects/%s/releases/%s", g.projectID, tagName)
+func (g *gitlabClient) UpdateTagRelease(body app.Release) error {
+	path := fmt.Sprintf("/projects/%s/releases/%s", g.projectID, body.Name)
 	bodyJSON, err := json.Marshal(body)
 	if err != nil {
 		return errors.WithStack(err)
 	}
 
-	_, err = g.makeRequest(requestIn{method: "PUT", path: path, body: bodyJSON})
+	_, err = g.makeRequest(requestIn{method: PUT, path: path, body: bodyJSON})
 	if err != nil {
 		return err
 	}
@@ -152,10 +157,6 @@ func (g *gitlabClient) makeRequest(reqIn requestIn) ([]byte, error) {
 		return nil, errors.WithStack(err)
 	}
 	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, errors.New(fmt.Sprintf("HTTP request failed with status code %d", resp.StatusCode))
-	}
 
 	responseBody, err := io.ReadAll(resp.Body)
 	if err != nil {

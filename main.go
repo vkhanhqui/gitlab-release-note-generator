@@ -31,31 +31,31 @@ func main() {
 		env.APIEndpoint,
 		env.ProjectID,
 	)
-	svc := app.NewGitLabService(client, app.Config{
-		TargetBranch:   env.TargetBranch,
-		TargetTagRegex: env.TargetTagRegex,
+	gitLabSvc := app.NewGitLabService(client, app.Config{
+		TargetBranch:       env.TargetBranch,
+		TargetTagRegex:     env.TargetTagRegex,
+		IssueClosedSeconds: env.IssueClosedSeconds,
 	})
 
-	tags, err := svc.RetrieveTwoLatestTags()
+	tags, err := gitLabSvc.RetrieveTwoLatestTags()
 	if err != nil {
 		panic(err)
 	}
 
 	if len(tags) != 2 {
 		fmt.Println("Cannot find latest and second latest tag. Abort the program!")
+		return
 	}
 
 	latestTag, secondLatestTag := tags[0], tags[1]
-	if latestTag.Commit.CommittedDate == "" || secondLatestTag.Commit.CommittedDate == "" {
-		fmt.Println("Cannot find latest and second latest tag. Abort the program!")
-	}
-
 	startDate := secondLatestTag.Commit.CommittedDate
 	endDate := latestTag.Commit.CommittedDate
-	// if env.IssueClosedSeconds > 0 {
+	if startDate == "" || endDate == "" {
+		fmt.Println("Cannot find latest and second latest tag. Abort the program!")
+		return
+	}
 
-	// }
-	mrs, issues, err := svc.RetrieveChangelogsByStartAndEndDate(startDate, endDate)
+	mrs, issues, err := gitLabSvc.RetrieveChangelogsByStartAndEndDate(startDate, endDate)
 	if err != nil {
 		panic(err)
 	}
@@ -64,10 +64,13 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	output, err := contentSvc.GenerateContent(mrs, issues, endDate)
+	content, err := contentSvc.GenerateContent(mrs, issues, endDate)
 	if err != nil {
 		panic(err)
 	}
-	fmt.Println(output)
 
+	err = gitLabSvc.Publish(latestTag, content)
+	if err != nil {
+		panic(err)
+	}
 }

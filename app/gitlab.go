@@ -10,11 +10,13 @@ import (
 const (
 	mergeRequestState = "merged"
 	issueState        = "closed"
+	gitlabTimeFormat  = time.RFC3339Nano
 )
 
 type GitLabService interface {
 	RetrieveTwoLatestTags() ([]Tag, error)
 	RetrieveChangelogsByStartAndEndDate(startDate, endDate string) ([]MergeRequest, []Issue, error)
+	Publish(tag Tag, content string) error
 }
 
 type gitLabService struct {
@@ -22,8 +24,24 @@ type gitLabService struct {
 	config Config
 }
 
+type Config struct {
+	TargetBranch       string
+	TargetTagRegex     string
+	IssueClosedSeconds int
+}
+
 func NewGitLabService(client GitLabClient, config Config) GitLabService {
 	return &gitLabService{client: client, config: config}
+}
+
+func (s *gitLabService) Publish(tag Tag, content string) error {
+	body := Release{tag.Name, content}
+	if tag.Release.Name != "" {
+		err := s.client.UpdateTagRelease(body)
+		return err
+	}
+	err := s.client.CreateTagRelease(body)
+	return err
 }
 
 func (s *gitLabService) RetrieveChangelogsByStartAndEndDate(startDate, endDate string) ([]MergeRequest, []Issue, error) {
@@ -35,19 +53,19 @@ func (s *gitLabService) RetrieveChangelogsByStartAndEndDate(startDate, endDate s
 		return nil, nil, err
 	}
 
-	parsedStartDate, err := time.Parse(time.RFC3339Nano, startDate)
+	parsedStartDate, err := time.Parse(gitlabTimeFormat, startDate)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	parsedEndDate, err := time.Parse(time.RFC3339Nano, endDate)
+	parsedEndDate, err := time.Parse(gitlabTimeFormat, endDate)
 	if err != nil {
 		return nil, nil, err
 	}
 
 	var filteredMRs []MergeRequest
 	for _, mr := range mergeRequests {
-		parsedTime, err := time.Parse(time.RFC3339Nano, mr.MergedAt)
+		parsedTime, err := time.Parse(gitlabTimeFormat, mr.MergedAt)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -67,7 +85,7 @@ func (s *gitLabService) RetrieveChangelogsByStartAndEndDate(startDate, endDate s
 
 	var filteredISs []Issue
 	for _, iss := range issues {
-		parsedTime, err := time.Parse(time.RFC3339Nano, iss.ClosedAt)
+		parsedTime, err := time.Parse(gitlabTimeFormat, iss.ClosedAt)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -132,6 +150,14 @@ func (s *gitLabService) RetrieveTwoLatestTags() ([]Tag, error) {
 			break
 		}
 	}
+
+	if s.config.IssueClosedSeconds > 0 {
+		parsedReleaseDate, err := time.Parse(gitlabTimeFormat, latest.Commit.CommittedDate)
+		if err != nil {
+			return nil, errors.WithStack(err)
+		}
+		latest.Commit.CommittedDate = parsedReleaseDate.Add(time.Duration(s.config.IssueClosedSeconds) * time.Second).Format(gitlabTimeFormat)
+	}
 	return []Tag{latest, *secondTag}, nil
 }
 
@@ -179,8 +205,8 @@ type GitLabClient interface {
 	RetrieveMergeRequests(query url.Values) ([]MergeRequest, error)
 	RetrieveTags(query url.Values) ([]Tag, error)
 	RetrieveCommitRefsBySHA(sha string, query url.Values) ([]CommitRef, error)
-	CreateTagRelease(tagName string, body Release) error
-	UpdateTagRelease(tagName string, body Release) error
+	CreateTagRelease(body Release) error
+	UpdateTagRelease(body Release) error
 }
 
 type Issue struct {
@@ -208,8 +234,9 @@ type MergeRequest struct {
 }
 
 type Tag struct {
-	Name   string `json:"name"`
-	Commit Commit `json:"commit"`
+	Name    string  `json:"name"`
+	Commit  Commit  `json:"commit"`
+	Release Release `json:"release"`
 }
 
 type Commit struct {
@@ -222,9 +249,6 @@ type CommitRef struct {
 }
 
 type Release struct {
-}
-
-type Config struct {
-	TargetBranch   string
-	TargetTagRegex string
+	Name        string `json:"tag_name"`
+	Description string `json:"description"`
 }
