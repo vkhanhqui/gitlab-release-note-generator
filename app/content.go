@@ -59,7 +59,7 @@ func (s *contentService) GenerateContent(mergeReqs []MergeRequest, issues []Issu
 }
 
 func (s *contentService) generateReleaseNote(releaseDate string) (string, error) {
-	parsedReleaseDate, err := time.Parse(gitlabTimeFormat, releaseDate)
+	parsedReleaseDate, err := time.Parse(GitlabTimeFormat, releaseDate)
 	if err != nil {
 		return "", errors.WithStack(err)
 	}

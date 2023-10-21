@@ -10,7 +10,10 @@ import (
 const (
 	mergeRequestState = "merged"
 	issueState        = "closed"
-	gitlabTimeFormat  = time.RFC3339Nano
+
+	GitlabTimeFormat     = time.RFC3339Nano
+	GitLabDefaultPage    = 1
+	GitLabDefaultPerPage = 20
 )
 
 type GitLabService interface {
@@ -45,27 +48,28 @@ func (s *gitLabService) Publish(tag Tag, content string) error {
 }
 
 func (s *gitLabService) RetrieveChangelogsByStartAndEndDate(startDate, endDate string) ([]MergeRequest, []Issue, error) {
-	mergeRequests, err := s.retrieveMergeRequests(url.Values{
-		"updated_before": {endDate},
-		"updated_after":  {startDate},
+	mrs, err := s.retrieveMergeRequests(ListMReqParams{
+		UpdatedBefore: endDate,
+		UpdatedAfter:  startDate,
+		State:         mergeRequestState,
 	})
 	if err != nil {
 		return nil, nil, err
 	}
 
-	parsedStartDate, err := time.Parse(gitlabTimeFormat, startDate)
+	parsedStartDate, err := time.Parse(GitlabTimeFormat, startDate)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	parsedEndDate, err := time.Parse(gitlabTimeFormat, endDate)
+	parsedEndDate, err := time.Parse(GitlabTimeFormat, endDate)
 	if err != nil {
 		return nil, nil, err
 	}
 
 	var filteredMRs []MergeRequest
-	for _, mr := range mergeRequests {
-		parsedTime, err := time.Parse(gitlabTimeFormat, mr.MergedAt)
+	for _, mr := range mrs {
+		parsedTime, err := time.Parse(GitlabTimeFormat, mr.MergedAt)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -75,9 +79,10 @@ func (s *gitLabService) RetrieveChangelogsByStartAndEndDate(startDate, endDate s
 		}
 	}
 
-	issues, err := s.retrieveIssues(url.Values{
-		"updated_before": {endDate},
-		"updated_after":  {startDate},
+	issues, err := s.retrieveIssues(ListIssueParams{
+		UpdatedBefore: endDate,
+		UpdatedAfter:  startDate,
+		State:         issueState,
 	})
 	if err != nil {
 		return nil, nil, err
@@ -85,7 +90,7 @@ func (s *gitLabService) RetrieveChangelogsByStartAndEndDate(startDate, endDate s
 
 	var filteredISs []Issue
 	for _, iss := range issues {
-		parsedTime, err := time.Parse(gitlabTimeFormat, iss.ClosedAt)
+		parsedTime, err := time.Parse(GitlabTimeFormat, iss.ClosedAt)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -99,7 +104,9 @@ func (s *gitLabService) RetrieveChangelogsByStartAndEndDate(startDate, endDate s
 }
 
 func (s *gitLabService) RetrieveTwoLatestTags() ([]Tag, error) {
-	tags, err := s.client.RetrieveTags(url.Values{})
+	var pg Pagination
+	pg.SetDefaults()
+	tags, err := s.client.RetrieveTags(&pg)
 	if err != nil || len(tags) < 1 {
 		return nil, err
 	}
@@ -134,49 +141,82 @@ func (s *gitLabService) RetrieveTwoLatestTags() ([]Tag, error) {
 	}
 
 	var secondTag *Tag
-	for _, tag := range tags {
-		isMatch, err := s.isMatchTargetTagRegex(tag)
-		if err != nil || !isMatch {
-			return nil, err
+	for secondTag == nil {
+		for _, tag := range tags {
+			isMatch, err := s.isMatchTargetTagRegex(tag)
+			if err != nil || !isMatch {
+				return nil, err
+			}
+
+			commits, err := s.client.RetrieveCommitRefsBySHA(tag.Commit.ID, url.Values{"type": {"branch"}})
+			if err != nil {
+				return nil, err
+			}
+
+			if s.isInTargetBranch(commits) {
+				secondTag = &tag
+				break
+			}
 		}
 
-		commits, err := s.client.RetrieveCommitRefsBySHA(tag.Commit.ID, url.Values{"type": {"branch"}})
-		if err != nil {
-			return nil, err
-		}
-
-		if s.isInTargetBranch(commits) {
-			secondTag = &tag
-			break
+		if secondTag == nil && pg.Page != GitLabDefaultPage {
+			tags, err = s.client.RetrieveTags(&pg)
+			if err != nil {
+				return nil, err
+			}
 		}
 	}
 
 	if s.config.IssueClosedSeconds > 0 {
-		parsedReleaseDate, err := time.Parse(gitlabTimeFormat, latest.Commit.CommittedDate)
+		parsedDate, err := time.Parse(GitlabTimeFormat, latest.Commit.CommittedDate)
 		if err != nil {
 			return nil, errors.WithStack(err)
 		}
-		latest.Commit.CommittedDate = parsedReleaseDate.Add(time.Duration(s.config.IssueClosedSeconds) * time.Second).Format(gitlabTimeFormat)
+
+		addedTime := time.Duration(s.config.IssueClosedSeconds) * time.Second
+		latest.Commit.CommittedDate = parsedDate.Add(addedTime).Format(GitlabTimeFormat)
 	}
 	return []Tag{latest, *secondTag}, nil
 }
 
-func (s *gitLabService) retrieveMergeRequests(query url.Values) ([]MergeRequest, error) {
-	query.Add("state", mergeRequestState)
-	list, err := s.client.RetrieveMergeRequests(query)
+func (s *gitLabService) retrieveMergeRequests(prs ListMReqParams) ([]MergeRequest, error) {
+	var pg Pagination
+	pg.SetDefaults()
+	var resp []MergeRequest
+	mrs, err := s.client.RetrieveMergeRequests(prs, &pg)
 	if err != nil {
-		return nil, errors.WithStack(err)
+		return nil, err
 	}
-	return list, nil
+	resp = append(resp, mrs...)
+
+	for pg.Page != GitLabDefaultPage {
+		mrs, err := s.client.RetrieveMergeRequests(prs, &pg)
+		if err != nil {
+			return nil, err
+		}
+		resp = append(resp, mrs...)
+	}
+	return resp, err
 }
 
-func (s *gitLabService) retrieveIssues(query url.Values) ([]Issue, error) {
-	query.Add("state", issueState)
-	list, err := s.client.RetrieveIssues(query)
+func (s *gitLabService) retrieveIssues(prs ListIssueParams) ([]Issue, error) {
+	var pg Pagination
+	pg.SetDefaults()
+	var resp []Issue
+	issues, err := s.client.RetrieveIssues(prs, &pg)
 	if err != nil {
-		return nil, errors.WithStack(err)
+		return nil, err
 	}
-	return list, nil
+	resp = append(resp, issues...)
+
+	for pg.Page != GitLabDefaultPage {
+		issues, err := s.client.RetrieveIssues(prs, &pg)
+		if err != nil {
+			return nil, err
+		}
+		resp = append(resp, issues...)
+	}
+	return resp, err
 }
 
 func (s *gitLabService) isMatchTargetTagRegex(tag Tag) (bool, error) {
@@ -200,13 +240,19 @@ func (s *gitLabService) isInTargetBranch(commits []CommitRef) bool {
 }
 
 type GitLabClient interface {
-	RetrieveIssues(query url.Values) ([]Issue, error)
+	RetrieveIssues(prs ListIssueParams, pg *Pagination) ([]Issue, error)
 	RetrieveRepo() (Repo, error)
-	RetrieveMergeRequests(query url.Values) ([]MergeRequest, error)
-	RetrieveTags(query url.Values) ([]Tag, error)
+	RetrieveMergeRequests(prs ListMReqParams, pg *Pagination) ([]MergeRequest, error)
+	RetrieveTags(pg *Pagination) ([]Tag, error)
 	RetrieveCommitRefsBySHA(sha string, query url.Values) ([]CommitRef, error)
 	CreateTagRelease(body Release) error
 	UpdateTagRelease(body Release) error
+}
+
+type ListIssueParams struct {
+	UpdatedBefore string
+	UpdatedAfter  string
+	State         string
 }
 
 type Issue struct {
@@ -219,6 +265,12 @@ type Issue struct {
 
 type Repo struct {
 	CreatedAt string `json:"created_at"`
+}
+
+type ListMReqParams struct {
+	UpdatedBefore string
+	UpdatedAfter  string
+	State         string
 }
 
 type MergeRequest struct {
@@ -251,4 +303,19 @@ type CommitRef struct {
 type Release struct {
 	Name        string `json:"tag_name"`
 	Description string `json:"description"`
+}
+
+type Pagination struct {
+	Page    int
+	PerPage int
+}
+
+func (p *Pagination) SetDefaults() {
+	if p.Page < 1 {
+		p.Page = GitLabDefaultPage
+	}
+
+	if p.PerPage < 20 {
+		p.PerPage = GitLabDefaultPerPage
+	}
 }
