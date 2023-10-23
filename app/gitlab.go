@@ -14,6 +14,8 @@ const (
 	GitlabTimeFormat     = time.RFC3339Nano
 	GitLabDefaultPage    = 1
 	GitLabDefaultPerPage = 20
+
+	lookingSecondTagLimit = 100
 )
 
 type GitLabService interface {
@@ -140,8 +142,9 @@ func (s *gitLabService) RetrieveTwoLatestTags() ([]Tag, error) {
 		}}, nil
 	}
 
-	var secondTag *Tag
-	for secondTag == nil {
+	var secondTag Tag
+	lookingLimit := lookingSecondTagLimit
+	for secondTag.Name == "" && lookingLimit > 0 {
 		for _, tag := range tags {
 			isMatch, err := s.isMatchTargetTagRegex(tag)
 			if err != nil || !isMatch {
@@ -154,17 +157,25 @@ func (s *gitLabService) RetrieveTwoLatestTags() ([]Tag, error) {
 			}
 
 			if s.isInTargetBranch(commits) {
-				secondTag = &tag
+				secondTag = tag
 				break
 			}
 		}
 
-		if secondTag == nil && pg.Page != GitLabDefaultPage {
+		if secondTag.Name == "" && pg.Page != GitLabDefaultPage {
 			tags, err = s.client.RetrieveTags(&pg)
 			if err != nil {
 				return nil, err
 			}
 		}
+
+		lookingLimit -= 1
+	}
+
+	startDate := secondTag.Commit.CommittedDate
+	endDate := latest.Commit.CommittedDate
+	if startDate == "" || endDate == "" {
+		return nil, errors.New("Cannot find latest and second latest tag. Abort the program!")
 	}
 
 	if s.config.IssueClosedSeconds > 0 {
@@ -176,7 +187,8 @@ func (s *gitLabService) RetrieveTwoLatestTags() ([]Tag, error) {
 		addedTime := time.Duration(s.config.IssueClosedSeconds) * time.Second
 		latest.Commit.CommittedDate = parsedDate.Add(addedTime).Format(GitlabTimeFormat)
 	}
-	return []Tag{latest, *secondTag}, nil
+
+	return []Tag{latest, secondTag}, nil
 }
 
 func (s *gitLabService) retrieveMergeRequests(prs ListMReqParams) ([]MergeRequest, error) {

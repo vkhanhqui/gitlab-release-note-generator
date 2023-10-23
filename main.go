@@ -1,8 +1,6 @@
 package main
 
 import (
-	"fmt"
-
 	"gitLab-rls-note/app"
 	"gitLab-rls-note/pkg/config"
 	"gitLab-rls-note/store"
@@ -42,18 +40,9 @@ func main() {
 		panic(err)
 	}
 
-	if len(tags) != 2 {
-		fmt.Println("Cannot find latest and second latest tag. Abort the program!")
-		return
-	}
-
 	latestTag, secondLatestTag := tags[0], tags[1]
 	startDate := secondLatestTag.Commit.CommittedDate
 	endDate := latestTag.Commit.CommittedDate
-	if startDate == "" || endDate == "" {
-		fmt.Println("Cannot find latest and second latest tag. Abort the program!")
-		return
-	}
 
 	mrs, issues, err := gitLabSvc.RetrieveChangelogsByStartAndEndDate(startDate, endDate)
 	if err != nil {
