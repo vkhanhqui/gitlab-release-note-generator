@@ -24,13 +24,14 @@ Golang version of [gitlab-release-note-generator](https://github.com/jk1z/gitlab
 
 1. Create an .env with these vars
 ```
-GITLAB_API_ENDPOINT=''
+GITLAB_API_ENDPOINT='<your_url>/api/v4'
 GITLAB_PERSONAL_TOKEN=''
 GITLAB_PROJECT_ID=''
 TARGET_BRANCH='main'
-TARGET_TAG_REGEX='^release-.*$'
+TARGET_TAG_REGEX='^release.*$'
 TZ='Asia/Saigon'
 ISSUE_CLOSED_SECONDS=0
+ZERO_TRUST_COOKIE=''
 ```
 
 2. Run
@@ -50,6 +51,7 @@ These can be specified using environment variables
 * ```TARGET_TAG_REGEX```:  Regular expression of the release tags to search, eg: ```^release-.*$```
 * ```TZ```: The timezone for your release notes, eg: ```Asia/Saigon```
 * ```ISSUE_CLOSED_SECONDS```: The amount of seconds to search after the last commit,  useful for Merge Requests that close their tickets a second after the commit, eg: ```0```
+* ```ZERO_TRUST_COOKIE```: To pass the cloudflare zero trust, eg: ```CF_AppSession= ;CF_Authorization= ;```
 
 
 ## Credits

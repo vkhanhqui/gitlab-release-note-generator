@@ -14,23 +14,19 @@ import (
 	"strconv"
 )
 
-const (
-	GET  = "GET"
-	POST = "POST"
-	PUT  = "PUT"
-)
-
 type gitlabClient struct {
 	personalToken string
 	apiEndpoint   string
 	projectID     string
+	cookie        string
 }
 
-func NewGitlabClient(personalToken, apiEndpoint, projectID string) app.GitLabClient {
+func NewGitlabClient(personalToken, apiEndpoint, projectID, cookie string) app.GitLabClient {
 	return &gitlabClient{
 		personalToken: personalToken,
 		apiEndpoint:   apiEndpoint,
 		projectID:     projectID,
+		cookie:        cookie,
 	}
 }
 
@@ -43,7 +39,7 @@ func (g *gitlabClient) RetrieveIssues(prs app.ListIssueParams, pg *app.Paginatio
 		"page":           {strconv.Itoa(pg.Page)},
 		"per_page":       {strconv.Itoa(pg.PerPage)},
 	}
-	header, body, err := g.makeRequest(requestIn{method: GET, path: path, query: query})
+	header, body, err := g.makeRequest(requestIn{method: http.MethodGet, path: path, query: query})
 	if err != nil {
 		return nil, err
 	}
@@ -59,7 +55,7 @@ func (g *gitlabClient) RetrieveIssues(prs app.ListIssueParams, pg *app.Paginatio
 
 func (g *gitlabClient) RetrieveRepo() (app.Repo, error) {
 	path := fmt.Sprintf("/projects/%s", g.projectID)
-	_, body, err := g.makeRequest(requestIn{method: GET, path: path})
+	_, body, err := g.makeRequest(requestIn{method: http.MethodGet, path: path})
 	if err != nil {
 		return app.Repo{}, err
 	}
@@ -82,7 +78,7 @@ func (g *gitlabClient) RetrieveMergeRequests(prs app.ListMReqParams, pg *app.Pag
 		"page":           {strconv.Itoa(pg.Page)},
 		"per_page":       {strconv.Itoa(pg.PerPage)},
 	}
-	header, body, err := g.makeRequest(requestIn{method: GET, path: path, query: query})
+	header, body, err := g.makeRequest(requestIn{method: http.MethodGet, path: path, query: query})
 	if err != nil {
 		return nil, err
 	}
@@ -102,7 +98,7 @@ func (g *gitlabClient) RetrieveTags(pg *app.Pagination) ([]app.Tag, error) {
 		"page":     {strconv.Itoa(pg.Page)},
 		"per_page": {strconv.Itoa(pg.PerPage)},
 	}
-	header, body, err := g.makeRequest(requestIn{method: GET, path: path, query: query})
+	header, body, err := g.makeRequest(requestIn{method: http.MethodGet, path: path, query: query})
 	if err != nil {
 		return nil, err
 	}
@@ -118,7 +114,7 @@ func (g *gitlabClient) RetrieveTags(pg *app.Pagination) ([]app.Tag, error) {
 
 func (g *gitlabClient) RetrieveCommitRefsBySHA(sha string, query url.Values) ([]app.CommitRef, error) {
 	path := fmt.Sprintf("/projects/%s/repository/commits/%s/refs", g.projectID, sha)
-	_, body, err := g.makeRequest(requestIn{method: GET, path: path, query: query})
+	_, body, err := g.makeRequest(requestIn{method: http.MethodGet, path: path, query: query})
 	if err != nil {
 		return nil, err
 	}
@@ -138,7 +134,7 @@ func (g *gitlabClient) CreateTagRelease(body app.Release) error {
 		return errors.WithStack(err)
 	}
 
-	_, _, err = g.makeRequest(requestIn{method: POST, path: path, body: bodyJSON})
+	_, _, err = g.makeRequest(requestIn{method: http.MethodPost, path: path, body: bodyJSON})
 	if err != nil {
 		return err
 	}
@@ -153,7 +149,7 @@ func (g *gitlabClient) UpdateTagRelease(body app.Release) error {
 		return errors.WithStack(err)
 	}
 
-	_, _, err = g.makeRequest(requestIn{method: PUT, path: path, body: bodyJSON})
+	_, _, err = g.makeRequest(requestIn{method: http.MethodPut, path: path, body: bodyJSON})
 	if err != nil {
 		return err
 	}
@@ -170,6 +166,10 @@ func (g *gitlabClient) makeRequest(reqIn requestIn) (http.Header, []byte, error)
 		return nil, nil, errors.WithStack(err)
 	}
 	req.Header.Add("Private-Token", g.personalToken)
+
+	if g.cookie != "" {
+		req.Header.Add("cookie", g.cookie)
+	}
 
 	if reqIn.body != nil {
 		req.Body = io.NopCloser(bytes.NewReader(reqIn.body))

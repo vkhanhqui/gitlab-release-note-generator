@@ -1,12 +1,13 @@
 package config
 
 import (
-	"gitLab-rls-note/pkg/errors"
-	"gitLab-rls-note/pkg/log"
+	"log"
 	"path"
 	"reflect"
 	"runtime"
 	"strings"
+
+	"gitLab-rls-note/pkg/errors"
 
 	"github.com/spf13/viper"
 )

@@ -14,6 +14,7 @@ type envConfig struct {
 	TargetTagRegex     string `mapstructure:"TARGET_TAG_REGEX"`
 	TimeZone           string `mapstructure:"TZ"`
 	IssueClosedSeconds int    `mapstructure:"ISSUE_CLOSED_SECONDS"`
+	ZeroTrustCookie    string `mapstructure:"ZERO_TRUST_COOKIE"`
 }
 
 func main() {
@@ -28,6 +29,7 @@ func main() {
 		env.PersonalToken,
 		env.APIEndpoint,
 		env.ProjectID,
+		env.ZeroTrustCookie,
 	)
 	gitLabSvc := app.NewGitLabService(client, app.Config{
 		TargetBranch:       env.TargetBranch,
