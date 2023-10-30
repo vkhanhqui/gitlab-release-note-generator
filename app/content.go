@@ -21,7 +21,7 @@ const (
 )
 
 type ContentService interface {
-	GenerateContent(mergeReqs []MergeRequest, issues []Issue, releaseDate string) (string, error)
+	GenerateContent(mergeReqs []MergeRequest, issues []Issue, releaseDate time.Time) (string, error)
 }
 type contentService struct {
 	labelConfigs []LabelConfig
@@ -42,7 +42,7 @@ func NewContentService(timeZone string) (ContentService, error) {
 	return &contentService{LABEL_CONFIG, labelBucket, tz}, nil
 }
 
-func (s *contentService) GenerateContent(mergeReqs []MergeRequest, issues []Issue, releaseDate string) (string, error) {
+func (s *contentService) GenerateContent(mergeReqs []MergeRequest, issues []Issue, releaseDate time.Time) (string, error) {
 	var dMrs []DecoratedMergeRequest
 	for _, mr := range mergeReqs {
 		dMrs = append(dMrs, s.decorateMergeRequest(mr))
@@ -58,13 +58,8 @@ func (s *contentService) GenerateContent(mergeReqs []MergeRequest, issues []Issu
 	return s.generateReleaseNote(releaseDate)
 }
 
-func (s *contentService) generateReleaseNote(releaseDate string) (string, error) {
-	parsedReleaseDate, err := time.Parse(GitlabTimeFormat, releaseDate)
-	if err != nil {
-		return "", errors.WithStack(err)
-	}
-
-	output := fmt.Sprintf("### Release note (%s)\n", parsedReleaseDate.In(s.timeZone).Format(releaseNoteTimeFormat))
+func (s *contentService) generateReleaseNote(releaseDate time.Time) (string, error) {
+	output := fmt.Sprintf("### Release note (%s)\n", releaseDate.In(s.timeZone).Format(releaseNoteTimeFormat))
 	for _, label := range s.labelConfigs {
 		if _, exists := s.labelBucket[label.Name]; exists {
 			bucket := s.labelBucket[label.Name]

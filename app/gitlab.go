@@ -11,7 +11,6 @@ const (
 	mergeRequestState = "merged"
 	issueState        = "closed"
 
-	GitlabTimeFormat     = time.RFC3339Nano
 	GitLabDefaultPage    = 1
 	GitLabDefaultPerPage = 20
 
@@ -20,7 +19,7 @@ const (
 
 type GitLabService interface {
 	RetrieveTwoLatestTags() ([]Tag, error)
-	RetrieveChangelogsByStartAndEndDate(startDate, endDate string) ([]MergeRequest, []Issue, error)
+	RetrieveChangelogsByStartAndEndDate(startDate, endDate time.Time) ([]MergeRequest, []Issue, error)
 	Publish(tag Tag, content string) error
 }
 
@@ -49,8 +48,9 @@ func (s *gitLabService) Publish(tag Tag, content string) error {
 	return err
 }
 
-func (s *gitLabService) RetrieveChangelogsByStartAndEndDate(startDate, endDate string) ([]MergeRequest, []Issue, error) {
+func (s *gitLabService) RetrieveChangelogsByStartAndEndDate(startDate, endDate time.Time) ([]MergeRequest, []Issue, error) {
 	mrs, err := s.retrieveMergeRequests(ListMReqParams{
+		TargetBranch:  s.config.TargetBranch,
 		UpdatedBefore: endDate,
 		UpdatedAfter:  startDate,
 		State:         mergeRequestState,
@@ -59,24 +59,9 @@ func (s *gitLabService) RetrieveChangelogsByStartAndEndDate(startDate, endDate s
 		return nil, nil, err
 	}
 
-	parsedStartDate, err := time.Parse(GitlabTimeFormat, startDate)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	parsedEndDate, err := time.Parse(GitlabTimeFormat, endDate)
-	if err != nil {
-		return nil, nil, err
-	}
-
 	var filteredMRs []MergeRequest
 	for _, mr := range mrs {
-		parsedTime, err := time.Parse(GitlabTimeFormat, mr.MergedAt)
-		if err != nil {
-			return nil, nil, err
-		}
-
-		if parsedTime.After(parsedStartDate) && parsedTime.Before(parsedEndDate) {
+		if mr.MergedAt.After(startDate) && mr.MergedAt.Before(endDate) {
 			filteredMRs = append(filteredMRs, mr)
 		}
 	}
@@ -92,12 +77,7 @@ func (s *gitLabService) RetrieveChangelogsByStartAndEndDate(startDate, endDate s
 
 	var filteredISs []Issue
 	for _, iss := range issues {
-		parsedTime, err := time.Parse(GitlabTimeFormat, iss.ClosedAt)
-		if err != nil {
-			return nil, nil, err
-		}
-
-		if parsedTime.After(parsedStartDate) && parsedTime.Before(parsedEndDate) {
+		if iss.ClosedAt.After(startDate) && iss.ClosedAt.Before(endDate) {
 			filteredISs = append(filteredISs, iss)
 		}
 	}
@@ -172,20 +152,14 @@ func (s *gitLabService) RetrieveTwoLatestTags() ([]Tag, error) {
 		lookingLimit -= 1
 	}
 
-	startDate := secondTag.Commit.CommittedDate
-	endDate := latest.Commit.CommittedDate
-	if startDate == "" || endDate == "" {
+	if lookingLimit < 1 {
 		return nil, errors.New("Cannot find latest and second latest tag. Abort the program!")
 	}
 
 	if s.config.IssueClosedSeconds > 0 {
-		parsedDate, err := time.Parse(GitlabTimeFormat, latest.Commit.CommittedDate)
-		if err != nil {
-			return nil, errors.WithStack(err)
-		}
-
 		addedTime := time.Duration(s.config.IssueClosedSeconds) * time.Second
-		latest.Commit.CommittedDate = parsedDate.Add(addedTime).Format(GitlabTimeFormat)
+		latest.Commit.CommittedDate = latest.Commit.CommittedDate.Add(addedTime)
+		secondTag.Commit.CommittedDate = secondTag.Commit.CommittedDate.Add(addedTime)
 	}
 
 	return []Tag{latest, secondTag}, nil
@@ -262,26 +236,27 @@ type GitLabClient interface {
 }
 
 type ListIssueParams struct {
-	UpdatedBefore string
-	UpdatedAfter  string
+	UpdatedBefore time.Time
+	UpdatedAfter  time.Time
 	State         string
 }
 
 type Issue struct {
-	IID      int      `json:"iid"`
-	Title    string   `json:"title"`
-	WebURL   string   `json:"web_url"`
-	Labels   []string `json:"labels"`
-	ClosedAt string   `json:"closed_at"`
+	IID      int       `json:"iid"`
+	Title    string    `json:"title"`
+	WebURL   string    `json:"web_url"`
+	Labels   []string  `json:"labels"`
+	ClosedAt time.Time `json:"closed_at"`
 }
 
 type Repo struct {
-	CreatedAt string `json:"created_at"`
+	CreatedAt time.Time `json:"created_at"`
 }
 
 type ListMReqParams struct {
-	UpdatedBefore string
-	UpdatedAfter  string
+	TargetBranch  string
+	UpdatedBefore time.Time
+	UpdatedAfter  time.Time
 	State         string
 }
 
@@ -294,7 +269,7 @@ type MergeRequest struct {
 		Username string `json:"username"`
 		WebURL   string `json:"web_url"`
 	} `json:"author"`
-	MergedAt string `json:"merged_at"`
+	MergedAt time.Time `json:"merged_at"`
 }
 
 type Tag struct {
@@ -304,8 +279,8 @@ type Tag struct {
 }
 
 type Commit struct {
-	ID            string `json:"id"`
-	CommittedDate string `json:"committed_date"`
+	ID            string    `json:"id"`
+	CommittedDate time.Time `json:"committed_date"`
 }
 
 type CommitRef struct {

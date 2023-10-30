@@ -7,11 +7,16 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"time"
 
 	"gitLab-rls-note/app"
 	"gitLab-rls-note/pkg/errors"
 
 	"strconv"
+)
+
+const (
+	GitlabTimeFormat = time.RFC3339Nano
 )
 
 type gitlabClient struct {
@@ -33,8 +38,8 @@ func NewGitlabClient(personalToken, apiEndpoint, projectID, cookie string) app.G
 func (g *gitlabClient) RetrieveIssues(prs app.ListIssueParams, pg *app.Pagination) ([]app.Issue, error) {
 	path := fmt.Sprintf("/projects/%s/issues", g.projectID)
 	query := url.Values{
-		"updated_before": {prs.UpdatedBefore},
-		"updated_after":  {prs.UpdatedAfter},
+		"updated_before": {prs.UpdatedBefore.Format(GitlabTimeFormat)},
+		"updated_after":  {prs.UpdatedAfter.Format(GitlabTimeFormat)},
 		"state":          {prs.State},
 		"page":           {strconv.Itoa(pg.Page)},
 		"per_page":       {strconv.Itoa(pg.PerPage)},
@@ -72,8 +77,10 @@ func (g *gitlabClient) RetrieveMergeRequests(prs app.ListMReqParams, pg *app.Pag
 	path := fmt.Sprintf("/projects/%s/merge_requests", g.projectID)
 
 	query := url.Values{
-		"updated_before": {prs.UpdatedBefore},
-		"updated_after":  {prs.UpdatedAfter},
+		"target_branch":  {prs.TargetBranch},
+		"scope":          {"all"},
+		"updated_before": {prs.UpdatedBefore.Format(GitlabTimeFormat)},
+		"updated_after":  {prs.UpdatedAfter.Format(GitlabTimeFormat)},
 		"state":          {prs.State},
 		"page":           {strconv.Itoa(pg.Page)},
 		"per_page":       {strconv.Itoa(pg.PerPage)},

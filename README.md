@@ -10,8 +10,6 @@ Golang version of [gitlab-release-note-generator](https://github.com/jk1z/gitlab
 
    *(Note. if an issue or merge request that has 2 or more labels, that issue or merge request will be displayed again under the corresponding title)*
 
--  Can be integrated as a CD service. Tutorial below
-
 
 ## How it works
 1. Find the latest tag
@@ -44,14 +42,16 @@ go run main.go
 
 These can be specified using environment variables
 
-* ```GITLAB_API_ENDPOINT```: Your gitlab instance's endpoint, eg: ```https://gitlab.com/api/v4```
-* ```GITLAB_PERSONAL_TOKEN```: A gitlab personal access token with `api` permission. [How to Tutorial](https://docs.gitlab.com/ee/user/profile/personal_access_tokens.html)
-* ```GITLAB_PROJECT_ID```: Your project id that is located under ```settings > general```
-* ```TARGET_BRANCH```: The branch to look for release tags, eg: ```main```
-* ```TARGET_TAG_REGEX```:  Regular expression of the release tags to search, eg: ```^release-.*$```
-* ```TZ```: The timezone for your release notes, eg: ```Asia/Saigon```
-* ```ISSUE_CLOSED_SECONDS```: The amount of seconds to search after the last commit,  useful for Merge Requests that close their tickets a second after the commit, eg: ```0```
-* ```ZERO_TRUST_COOKIE```: To pass the cloudflare zero trust, eg: ```CF_AppSession= ;CF_Authorization= ;```
+* `GITLAB_API_ENDPOINT`: Your gitlab instance's endpoint, eg: `https://gitlab.com/api/v4`
+* `GITLAB_PERSONAL_TOKEN`: A gitlab personal access token with `api` permission. [How to Tutorial](https://docs.gitlab.com/ee/user/profile/personal_access_tokens.html)
+* `GITLAB_PROJECT_ID`: Your project id that is located under `settings > general`
+* `TARGET_BRANCH`: The branch to look for release tags, eg: `main`
+* `TARGET_TAG_REGEX`:  Regular expression of the release tags to search, eg: `^release-.*$`
+* `TZ`: The timezone for your release notes, eg: `Asia/Saigon`
+* `ISSUE_CLOSED_SECONDS`: The amount of seconds to search after the last commit,  useful for Merge Requests that close their tickets a second after the commit. In my case it's nearly 2 seconds:
+   * The latest tag `UpdatedBefore` is `2023-10-30T09:27:50.000+07:00`
+   * While the latest merge request `MergedAt` is `2023-10-30T09:27:51.877+07:00`
+* `ZERO_TRUST_COOKIE`: To pass the cloudflare zero trust, eg: `CF_AppSession= ;CF_Authorization= ;`
 
 
 ## Credits
