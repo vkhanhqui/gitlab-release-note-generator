@@ -30,6 +30,7 @@ TARGET_TAG_REGEX='^release.*$'
 TZ='Asia/Saigon'
 ISSUE_CLOSED_SECONDS=0
 ZERO_TRUST_COOKIE=''
+IncludeCommits=true
 ```
 
 2. Run
@@ -52,6 +53,7 @@ These can be specified using environment variables
    * The latest tag `UpdatedBefore` is `2023-10-30T09:27:50.000+07:00`
    * While the latest merge request `MergedAt` is `2023-10-30T09:27:51.877+07:00`
 * `ZERO_TRUST_COOKIE`: To pass the cloudflare zero trust, eg: `CF_AppSession= ;CF_Authorization= ;`
+* `IncludeCommits`: To generate commits of merge requests. eg: `true/false`
 
 
 ## Credits

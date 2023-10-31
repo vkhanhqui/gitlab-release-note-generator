@@ -32,6 +32,7 @@ type Config struct {
 	TargetBranch       string
 	TargetTagRegex     string
 	IssueClosedSeconds int
+	IncludeCommits     bool
 }
 
 func NewGitLabService(client GitLabClient, config Config) GitLabService {
@@ -63,6 +64,15 @@ func (s *gitLabService) RetrieveChangelogsByStartAndEndDate(startDate, endDate t
 	for _, mr := range mrs {
 		if mr.MergedAt.After(startDate) && mr.MergedAt.Before(endDate) {
 			filteredMRs = append(filteredMRs, mr)
+		}
+	}
+
+	if s.config.IncludeCommits {
+		for i, mr := range filteredMRs {
+			filteredMRs[i].Commits, err = s.retrieveMergeRequestCommits(mr.IID)
+			if err != nil {
+				return nil, nil, err
+			}
 		}
 	}
 
@@ -185,6 +195,23 @@ func (s *gitLabService) retrieveMergeRequests(prs ListMReqParams) ([]MergeReques
 	return resp, err
 }
 
+func (s *gitLabService) retrieveMergeRequestCommits(merge_request_iid int) ([]MRCommit, error) {
+	var pg Pagination
+	pg.SetDefaults()
+	var resp []MRCommit
+	commits, err := s.client.RetrieveMergeRequestCommits(merge_request_iid, &pg)
+	resp = append(resp, commits...)
+
+	for pg.Page != GitLabDefaultPage {
+		commits, err := s.client.RetrieveMergeRequestCommits(merge_request_iid, &pg)
+		if err != nil {
+			return nil, err
+		}
+		resp = append(resp, commits...)
+	}
+	return resp, err
+}
+
 func (s *gitLabService) retrieveIssues(prs ListIssueParams) ([]Issue, error) {
 	var pg Pagination
 	pg.SetDefaults()
@@ -229,6 +256,7 @@ type GitLabClient interface {
 	RetrieveIssues(prs ListIssueParams, pg *Pagination) ([]Issue, error)
 	RetrieveRepo() (Repo, error)
 	RetrieveMergeRequests(prs ListMReqParams, pg *Pagination) ([]MergeRequest, error)
+	RetrieveMergeRequestCommits(merge_request_iid int, pg *Pagination) ([]MRCommit, error)
 	RetrieveTags(pg *Pagination) ([]Tag, error)
 	RetrieveCommitRefsBySHA(sha string, query url.Values) ([]CommitRef, error)
 	CreateTagRelease(body Release) error
@@ -270,6 +298,7 @@ type MergeRequest struct {
 		WebURL   string `json:"web_url"`
 	} `json:"author"`
 	MergedAt time.Time `json:"merged_at"`
+	Commits  []MRCommit
 }
 
 type Tag struct {
@@ -305,4 +334,19 @@ func (p *Pagination) SetDefaults() {
 	if p.PerPage < 20 {
 		p.PerPage = GitLabDefaultPerPage
 	}
+}
+
+type MRCommit struct {
+	ID             string    `json:"id"`
+	ShortID        string    `json:"short_id"`
+	CreatedAt      time.Time `json:"created_at"`
+	Title          string    `json:"title"`
+	Message        string    `json:"message"`
+	AuthorName     string    `json:"author_name"`
+	AuthorEmail    string    `json:"author_email"`
+	AuthoredDate   time.Time `json:"authored_date"`
+	CommitterName  string    `json:"committer_name"`
+	CommitterEmail string    `json:"committer_email"`
+	CommittedDate  time.Time `json:"committed_date"`
+	WebURL         string    `json:"web_url"`
 }

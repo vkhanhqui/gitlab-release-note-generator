@@ -99,6 +99,26 @@ func (g *gitlabClient) RetrieveMergeRequests(prs app.ListMReqParams, pg *app.Pag
 	return mergeRequests, nil
 }
 
+func (g *gitlabClient) RetrieveMergeRequestCommits(merge_request_iid int, pg *app.Pagination) ([]app.MRCommit, error) {
+	path := fmt.Sprintf("/projects/%s/merge_requests/%d/commits", g.projectID, merge_request_iid)
+	query := url.Values{
+		"page":     {strconv.Itoa(pg.Page)},
+		"per_page": {strconv.Itoa(pg.PerPage)},
+	}
+	header, body, err := g.makeRequest(requestIn{method: http.MethodGet, path: path, query: query})
+	if err != nil {
+		return nil, err
+	}
+
+	var commits []app.MRCommit
+	if err := json.Unmarshal(body, &commits); err != nil {
+		return nil, errors.WithStack(err)
+	}
+
+	pg.Page = g.getNextPage(header)
+	return commits, nil
+}
+
 func (g *gitlabClient) RetrieveTags(pg *app.Pagination) ([]app.Tag, error) {
 	path := fmt.Sprintf("/projects/%s/repository/tags", g.projectID)
 	query := url.Values{

@@ -15,6 +15,7 @@ type envConfig struct {
 	TimeZone           string `mapstructure:"TZ"`
 	IssueClosedSeconds int    `mapstructure:"ISSUE_CLOSED_SECONDS"`
 	ZeroTrustCookie    string `mapstructure:"ZERO_TRUST_COOKIE"`
+	IncludeCommits     bool   `mapstructure:"IncludeCommits"`
 }
 
 func main() {
@@ -35,6 +36,7 @@ func main() {
 		TargetBranch:       env.TargetBranch,
 		TargetTagRegex:     env.TargetTagRegex,
 		IssueClosedSeconds: env.IssueClosedSeconds,
+		IncludeCommits:     env.IncludeCommits,
 	})
 
 	tags, err := gitLabSvc.RetrieveTwoLatestTags()

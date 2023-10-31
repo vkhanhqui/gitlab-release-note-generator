@@ -104,6 +104,9 @@ func (s *contentService) populateLabelBucket(mergeReqs []DecoratedMergeRequest, 
 
 func (s *contentService) decorateMergeRequest(mr MergeRequest) DecoratedMergeRequest {
 	msg := fmt.Sprintf("- %s [#%d](%s) ([%s](%s))", mr.Title, mr.IID, mr.WebURL, mr.Author.Username, mr.Author.WebURL)
+	for _, commit := range mr.Commits {
+		msg += fmt.Sprintf("\n  - %s [#%s](%s) (%s)", commit.Title, commit.ShortID, commit.WebURL, commit.AuthorEmail)
+	}
 	return DecoratedMergeRequest{
 		Message:      msg,
 		Labels:       mr.Labels,
