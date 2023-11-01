@@ -15,7 +15,7 @@ type envConfig struct {
 	TimeZone           string `mapstructure:"TZ"`
 	IssueClosedSeconds int    `mapstructure:"ISSUE_CLOSED_SECONDS"`
 	ZeroTrustCookie    string `mapstructure:"ZERO_TRUST_COOKIE"`
-	IncludeCommits     bool   `mapstructure:"IncludeCommits"`
+	IncludeCommits     bool   `mapstructure:"INCLUDE_COMMITS"`
 }
 
 func main() {
